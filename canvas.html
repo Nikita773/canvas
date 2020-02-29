@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Canvas</title>
+    <style>
+    	* { padding: 0; margin: 0; }
+    	canvas { background: #eee; display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+
+<canvas id="myCanvas" width="800" height="500"></canvas>
+
+<script>
+
+let canvas = document.getElementById("myCanvas");
+let ctx = canvas.getContext("2d");
+
+function getRndInteger(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+function randColor() {
+	var r = Math.floor(Math.random() * (256)),
+    g = Math.floor(Math.random() * (256)),
+    b = Math.floor(Math.random() * (256));
+	return '#' + r.toString(16) + g.toString(16) + b.toString(16);
+}
+
+function distance(x1, y1, x2, y2) {
+    const xDist = x2 - x1;
+    const yDist = y2 - y1;
+    return Math.sqrt(Math.pow(xDist, 2) + Math.pow(yDist, 2));
+}
+
+function rotateVelocities(velocity, theta) {
+    const rotatedVelocity = {
+        x: velocity.x * Math.cos(theta) - velocity.y * Math.sin(theta),
+        y: velocity.x * Math.sin(theta) + velocity.y * Math.cos(theta)
+    };
+    return rotatedVelocity;
+}
+
+function resolveCollision(particle, otherParticle) {
+    const xVelocityDiff = particle.velocity.x - otherParticle.velocity.x;
+    const yVelocityDiff = particle.velocity.y - otherParticle.velocity.y;
+
+    const xDist = otherParticle.x - particle.x;
+    const yDist = otherParticle.y - particle.y;
+
+    // Prevent accidental overlap of particles
+    if (xVelocityDiff * xDist + yVelocityDiff * yDist >= 0) {
+
+        // Grab angle between the two colliding particles
+        const theta = -Math.atan2(otherParticle.y - particle.y, otherParticle.x - particle.x);
+
+        // Store mass in var for better readability in collision equation
+        const m1 = particle.mass;
+        const m2 = otherParticle.mass;
+
+        // Velocity before equation
+        const u1 = rotateVelocities(particle.velocity, theta);
+        const u2 = rotateVelocities(otherParticle.velocity, theta);
+
+        // Velocity after 1d collision equation
+        const v1 = { x: u1.x * (m1 - m2) / (m1 + m2) + u2.x * 2 * m2 / (m1 + m2), y: u1.y };
+        const v2 = { x: u2.x * (m1 - m2) / (m1 + m2) + u1.x * 2 * m2 / (m1 + m2), y: u2.y };
+
+        // Final velocity after rotating axis back to original location
+        const vFinal1 = rotateVelocities(v1, -theta);
+        const vFinal2 = rotateVelocities(v2, -theta);
+
+        // Swap particle velocities for realistic bounce effect
+        particle.velocity.x = vFinal1.x;
+        particle.velocity.y = vFinal1.y;
+
+        otherParticle.velocity.x = vFinal2.x;
+        otherParticle.velocity.y = vFinal2.y;
+    }
+}
+
+class Ball{
+	constructor(x,y,radius,color){
+		this.radius = getRndInteger(10,40);
+		this.x = 0 + this.radius;
+		this.y = 0 + this.radius;
+        this.velocity = {
+        	x: 2,
+        	y: 2
+        };
+		this.mass = 1;
+		this.color = randColor();
+	}
+    drawBall() {  // start drawing our balls.
+        ctx.beginPath(); // start of our path
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, true); // our arc/how they change
+        ctx.closePath(); // end of our path
+        ctx.fillStyle = this.color;  // whatever color we give them
+        ctx.fill(); // filling them up with color.
+    }
+    updateBall(particles){
+        for(let i = 0; i < particles.length; i++){
+            if(this === particles[i]) continue;
+
+            if(distance(this.x,this.y,particles[i].x, particles[i].y) - this.radius - particles[i].radius < 0 ){
+                resolveCollision(this, particles[i]);
+            }
+        }
+		if(this.x + this.velocity.x > canvas.width - this.radius || this.x + this.velocity.x < this.radius) {
+		    this.velocity.x = -this.velocity.x;
+		}
+		if(this.y + this.velocity.y > canvas.height - this.radius || this.y + this.velocity.y < this.radius) {
+		    this.velocity.y = -this.velocity.y;
+		}
+
+		this.x += this.velocity.x;
+		this.y += this.velocity.y;
+	}
+}
+
+class Rect{
+	constructor(x,y,side,color){
+		this.side = getRndInteger(10,40);
+		this.x = 0;
+		this.y = 0;
+        this.velocity = {
+            x: 2,
+            y: 2
+        };
+        this.mass = 1;
+		this.color = randColor();
+	}
+    drawRect() {
+        ctx.beginPath();
+        ctx.rect(this.x, this.y, this.side, this.side);
+        ctx.closePath();
+        ctx.fillStyle = this.color; 
+        ctx.fill();
+    }
+    updateRect(particles){
+
+        for(let i = 0; i < particles.length; i++){
+            if(this === particles[i]) continue;
+            if(particles[i].x + particles[i].side + particles[i].velocity.x > this.x && 
+				particles[i].x + particles[i].velocity.x < this.x + this.side && 
+				particles[i].y + particles[i].side > this.y && 
+				particles[i].y < this.y + this.side) {
+            	resolveCollision(this, particles[i]);
+		    }
+		}
+
+		if(this.x + this.velocity.x > canvas.width - this.side || this.x + this.velocity.x < 0) {
+		    this.velocity.x = -this.velocity.x;
+		}
+		if(this.y + this.velocity.y > canvas.height - this.side || this.y + this.velocity.y < 0) {
+		    this.velocity.y = -this.velocity.y;
+		}
+		this.x += this.velocity.x;
+		this.y += this.velocity.y;
+    }
+}
+
+let balls = [];
+function makingBalls() {
+	for(let i=0;i<10;i++){
+		setTimeout(function(){
+			let ball = new Ball();
+			console.log('Circle '+i,ball);
+			balls.push(ball);
+			ball.drawBall();
+		},1000*(i+1));
+	}
+	return balls;
+}
+makingBalls();
+
+let rects = [];
+function makingRects() {
+		for(let i=0;i<10;i++){
+			setTimeout(function(){
+				let rect = new Rect();
+				console.log('Rectangle '+i,rect);
+				rects.push(rect);
+				rect.drawRect();
+			},1000*(i+1));
+		}
+		return rects;
+	}
+setTimeout(makingRects,10000);
+
+function anim(){
+	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	for(let i=0;i<balls.length;i++){
+		balls[i].drawBall();
+		balls[i].updateBall(balls);
+	}
+	for(let i=0;i<rects.length;i++){
+		rects[i].drawRect();
+		rects[i].updateRect(rects);
+	}
+}
+setInterval(anim,10);
+
+</script>
+
+</body>
+</html>
